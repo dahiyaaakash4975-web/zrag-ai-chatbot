@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route("/")
 def home():
@@ -10,10 +10,9 @@ def home():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.json
-    user_input = data.get("message")
+    data = request.get_json()
+    user_input = data.get("message", "")
 
-    # Demo response (for online)
     reply = f"AI Response: {user_input}"
 
     return jsonify({"reply": reply})
