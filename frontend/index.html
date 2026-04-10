@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ZRAG AI</title>
+
+  <style>
+    body { margin:0; display:flex; font-family:Arial; background:#111; color:white; }
+
+    .sidebar { width:250px; background:#1e1e1e; padding:10px; height:100vh; }
+    .chatlist div { padding:10px; border-bottom:1px solid #333; cursor:pointer; }
+
+    .main { flex:1; display:flex; flex-direction:column; }
+    .messages { flex:1; padding:10px; overflow-y:auto; }
+
+    input { width:55%; padding:8px; }
+    button { padding:8px; margin:5px; }
+
+    img { max-width:150px; margin:5px; }
+
+    .user { color:cyan; }
+    .bot { color:yellow; }
+  </style>
+</head>
+
+<body>
+
+<div class="sidebar">
+  <h3>Chats</h3>
+  <button onclick="newChat()">+ New Chat</button>
+  <div id="chatlist" class="chatlist"></div>
+</div>
+
+<div class="main">
+  <div id="chat" class="messages"></div>
+
+  <div>
+    <input id="userInput" placeholder="Type or speak..." />
+    <button onclick="send()">Send</button>
+    <button onclick="startVoice()">🎤</button>
+    <button onclick="toggleVoice()" id="voiceBtn">🔇 Voice OFF</button>
+  </div>
+
+  <div>
+    <input type="file" id="imageInput" />
+    <button onclick="uploadImage()">Upload</button>
+  </div>
+</div>
+
+<script>
+let currentChat = Date.now().toString();
+let voiceEnabled = false;
+
+// 🎤 VOICE INPUT
+function startVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Use Chrome ❌");
+    return;
+  }
+
+  const rec = new SpeechRecognition();
+  rec.lang = "en-IN";
+  rec.start();
+
+  rec.onresult = function(e) {
+    let text = e.results[0][0].transcript;
+    document.getElementById("userInput").value = text;
+    send();
+  };
+
+  rec.onerror = function(e) {
+    console.log("Voice error:", e.error);
+  };
+}
+
+// 🔊 TOGGLE VOICE
+function toggleVoice() {
+  voiceEnabled = !voiceEnabled;
+
+  let btn = document.getElementById("voiceBtn");
+
+  if (voiceEnabled) {
+    btn.innerText = "🔊 Voice ON";
+  } else {
+    btn.innerText = "🔇 Voice OFF";
+    window.speechSynthesis.cancel();
+  }
+}
+
+// 💬 SEND MESSAGE
+async function send() {
+  let input = document.getElementById("userInput").value;
+  let chat = document.getElementById("chat");
+
+  if (!input) return;
+
+  chat.innerHTML += `<p class="user">🧑 ${input}</p>`;
+
+  let res = await fetch("http://localhost:5000/chat", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ message: input, chatId: currentChat })
+  });
+
+  let data = await res.json();
+
+  chat.innerHTML += `<p class="bot">🤖 ${data.reply}</p>`;
+
+  // 🔊 VOICE OUTPUT (ONLY IF ENABLED)
+  if (voiceEnabled) {
+    let speech = new SpeechSynthesisUtterance(data.reply);
+    speech.lang = "en-IN";
+    speechSynthesis.speak(speech);
+  }
+
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById("userInput").value = "";
+
+  loadChats();
+}
+
+// 🖼️ IMAGE UPLOAD
+async function uploadImage() {
+  let file = document.getElementById("imageInput").files[0];
+  if (!file) return alert("Select image");
+
+  let formData = new FormData();
+  formData.append("image", file);
+
+  let chat = document.getElementById("chat");
+
+  chat.innerHTML += `<p>🧑 Sent image:</p><img src="${URL.createObjectURL(file)}">`;
+
+  let res = await fetch("http://localhost:5000/upload", {
+    method: "POST",
+    body: formData
+  });
+
+  let data = await res.json();
+
+  chat.innerHTML += `<p class="bot">🤖 ${data.reply}</p>`;
+}
+
+// 📜 LOAD CHATS
+async function loadChats() {
+  let res = await fetch("http://localhost:5000/chats");
+  let chats = await res.json();
+
+  let list = document.getElementById("chatlist");
+  list.innerHTML = "";
+
+  chats.forEach(chat => {
+    let div = document.createElement("div");
+    div.innerText = chat.title || "Chat";
+    div.onclick = () => loadChat(chat.id);
+    list.appendChild(div);
+  });
+}
+
+// 📂 LOAD CHAT HISTORY
+async function loadChat(id) {
+  currentChat = id;
+
+  let res = await fetch(`http://localhost:5000/chat/${id}`);
+  let history = await res.json();
+
+  let chat = document.getElementById("chat");
+  chat.innerHTML = "";
+
+  history.forEach(m => {
+    chat.innerHTML += `<p class="${m.role==='user'?'user':'bot'}">
+      ${m.role==='user'?'🧑':'🤖'} ${m.content}
+    </p>`;
+  });
+}
+
+// ➕ NEW CHAT
+function newChat() {
+  currentChat = Date.now().toString();
+  document.getElementById("chat").innerHTML = "";
+}
+
+// 🔄 LOAD ON START
+window.onload = loadChats;
+</script>
+
+</body>
+</html>
