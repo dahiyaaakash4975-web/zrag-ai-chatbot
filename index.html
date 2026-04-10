@@ -97,7 +97,7 @@ async function send() {
 
   chat.innerHTML += `<p class="user">🧑 ${input}</p>`;
 
-  let res = await fetch("https://zrag-backend.onrender.com/chat", {
+  let res = await fetch("https://zrag-backend.onrender.com/chats", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ message: input, chatId: currentChat })
